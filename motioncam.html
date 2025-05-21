@@ -34,6 +34,61 @@
     canvas {
       display: none;
     }
+    #recordBtn{
+    
+    }
+    /* From Uiverse.io by cssbuttons-io */ 
+#recordBtn {
+ appearance: button;
+ background-color: #89ff33;
+ border: solid transparent;
+ border-radius: 16px;
+ border-width: 0 0 4px;
+ box-sizing: border-box;
+ color: #FFFFFF;
+ cursor: pointer;
+ display: inline-block;
+ font-size: 15px;
+ font-weight: 700;
+ letter-spacing: .8px;
+ line-height: 20px;
+ margin: 0;
+ margin-top:15px;
+ outline: none;
+ overflow: visible;
+ padding: 13px 19px;
+ text-align: center;
+ text-transform: uppercase;
+ touch-action: manipulation;
+ transform: translateZ(0);
+ transition: filter .2s;
+ user-select: none;
+ -webkit-user-select: none;
+ vertical-align: middle;
+ white-space: nowrap;
+}
+
+
+
+#recordBtn:main, button:focus {
+ user-select: auto;
+}
+
+#recordBtn:hover:not(:disabled) {
+ filter: brightness(1.1);
+}
+
+#recordBtn:disabled {
+ cursor: auto;
+}
+
+#recordBtn:active:after {
+ border-width: 0 0 0px;
+}
+
+#recordBtn:active {
+ padding-bottom: 10px;
+}
   </style>
 </head>
 <body>
@@ -41,6 +96,9 @@
   <label for="cameraSelect">Choose a camera:</label>
   <select id="cameraSelect"></select>
   <video id="video" autoplay playsinline></video>
+
+  <button id="recordBtn">Start Recording</button>
+
   <canvas id="motionCanvas" width="160" height="120"></canvas>
 
   <script>
@@ -140,6 +198,63 @@
       console.error(err);
     });
   </script>
+  <script>
+  let mediaRecorder;
+  let recordedChunks = [];
+  const recordBtn = document.getElementById('recordBtn');
+  let isRecording = false;
+
+  recordBtn.addEventListener('click', () => {
+    if (!isRecording) {
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  });
+
+  function startRecording() {
+    if (!video.srcObject) {
+      alert("No video stream available.");
+      return;
+    }
+
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(video.srcObject, {
+      mimeType: 'video/webm;codecs=vp8'
+    });
+
+    mediaRecorder.ondataavailable = event => {
+      if (event.data.size > 0) recordedChunks.push(event.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      a.href = url;
+      a.download = `recording_${timestamp}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    recordBtn.textContent = 'Stop Recording';
+    recordBtn.style.backgroundColor = 'red';
+  }
+
+  function stopRecording() {
+    mediaRecorder.stop();
+    isRecording = false;
+    recordBtn.textContent = 'Start Recording';
+    recordBtn.style.backgroundColor = '#89ff33';
+  }
+</script>
+
 </body>
 </html>
-
