@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Motion Cam</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    body.motion {
+      background-color: #100;
+      box-shadow: 0 0 40px 20px rgba(255, 0, 0, 0.4) inset;
+    }
+    video {
+      width: 100%;
+      max-width: 800px;
+      border: 5px solid #fff;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    select {
+      font-size: 16px;
+      padding: 5px;
+      margin-top: 10px;
+    }
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Motion Cam</h1>
+  <label for="cameraSelect">Choose a camera:</label>
+  <select id="cameraSelect"></select>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="motionCanvas" width="160" height="120"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('motionCanvas');
+    const ctx = canvas.getContext('2d');
+    const cameraSelect = document.getElementById('cameraSelect');
+    const body = document.body;
+
+    let currentStream;
+    let previousFrame = null;
+    let flash = false;
+    let motion = false;
+
+    async function stopCurrentStream() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+      }
+    }
+
+    async function startCamera(deviceId) {
+      await stopCurrentStream();
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+        audio: false
+      };
+      currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = currentStream;
+    }
+
+    async function populateCameraList() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+      cameraSelect.innerHTML = '';
+      videoDevices.forEach((device, i) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Camera ${i + 1}`;
+        cameraSelect.appendChild(option);
+      });
+      return videoDevices;
+    }
+
+    cameraSelect.addEventListener('change', () => {
+      startCamera(cameraSelect.value);
+    });
+
+    function checkForMotion() {
+      if (video.readyState < 2) return;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const currFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      if (!previousFrame) {
+        previousFrame = currFrame;
+        return;
+      }
+
+      let diff = 0;
+      for (let i = 0; i < currFrame.data.length; i += 4) {
+        const avgCurr = (currFrame.data[i] + currFrame.data[i + 1] + currFrame.data[i + 2]) / 3;
+        const avgPrev = (previousFrame.data[i] + previousFrame.data[i + 1] + previousFrame.data[i + 2]) / 3;
+        const pixelDiff = Math.abs(avgCurr - avgPrev);
+        if (pixelDiff > 20) diff++;
+      }
+
+      previousFrame = currFrame;
+
+      motion = diff > 35;
+    }
+
+    function updateVisuals() {
+      if (motion) {
+        document.title = flash ? '⚠️ Motion!' : 'Motion Cam';
+        body.classList.add('motion');
+        flash = !flash;
+      } else {
+        document.title = 'Motion Cam';
+        body.classList.remove('motion');
+        flash = false;
+      }
+    }
+
+    async function init() {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      const cams = await populateCameraList();
+      if (cams.length > 0) startCamera(cams[0].deviceId);
+
+      setInterval(() => {
+        checkForMotion();
+        updateVisuals();
+      }, 300);
+    }
+
+    init().catch(err => {
+      alert("Camera error: " + err.message);
+      console.error(err);
+    });
+  </script>
+</body>
+</html>
+
